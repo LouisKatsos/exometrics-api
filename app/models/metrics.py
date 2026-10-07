@@ -8,6 +8,8 @@ class MetricsEntryCreate(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     timestamp:   int             # epoch millis, as written by System.currentTimeMillis()
+    username:    Optional[str] = None
+    session_id:  Optional[int] = Field(default=None, alias='sessionId')
     hr:          int
     hrv:         float
     hrv_slope:   float = Field(alias='hrvSlope')
@@ -22,12 +24,14 @@ class PowerChangeEventCreate(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     timestamp:          int
+    username:           Optional[str] = None
+    session_id:         Optional[int] = Field(default=None, alias='sessionId')
     old_power_percent:  Optional[int] = Field(default=None, alias='oldPowerPercent')
     new_power_percent:  int           = Field(alias='newPowerPercent')
     reason:             str
     hr:                 int
     hrv:                float
-    hrv_slope:           float = Field(alias='hrvSlope')
+    hrv_slope:          float = Field(alias='hrvSlope')
 
 
 class ModeChangeEventCreate(BaseModel):
@@ -35,14 +39,28 @@ class ModeChangeEventCreate(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     timestamp:  int
+    username:   Optional[str] = None
+    session_id: Optional[int] = Field(default=None, alias='sessionId')
     old_mode:   Optional[str] = Field(default=None, alias='oldMode')
     new_mode:   str           = Field(alias='newMode')
     hr:         int
 
 
+class FeedbackCreate(BaseModel):
+    """Mirrors the JSON written by MetricsLogger.logFeedback()."""
+    model_config = ConfigDict(populate_by_name=True)
+
+    timestamp:  int
+    username:   Optional[str] = None
+    session_id: Optional[int] = Field(default=None, alias='sessionId')
+    text:       str = Field(min_length=1, max_length=5000)
+
+
 class MetricsEntryResponse(BaseModel):
     id:          str
     user_id:     str
+    username:    Optional[str] = None
+    session_id:  Optional[int] = None
     received_at: datetime  # server-side receipt time, distinct from the device timestamp
     timestamp:   int
     hr:          int
@@ -57,6 +75,8 @@ class MetricsEntryResponse(BaseModel):
 class EventResponse(BaseModel):
     id:          str
     user_id:     str
+    username:    Optional[str] = None
+    session_id:  Optional[int] = None
     received_at: datetime
     timestamp:   int
     type:        str  # "power_change" | "mode_change"
@@ -68,3 +88,13 @@ class EventResponse(BaseModel):
     reason:      Optional[str] = None
     old_mode:    Optional[str] = None
     new_mode:    Optional[str] = None
+
+
+class FeedbackResponse(BaseModel):
+    id:          str
+    user_id:     str
+    username:    Optional[str] = None
+    session_id:  Optional[int] = None
+    received_at: datetime
+    timestamp:   int
+    text:        str

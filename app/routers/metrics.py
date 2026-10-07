@@ -6,6 +6,7 @@ from app.models.metrics import (
     MetricsEntryCreate,
     PowerChangeEventCreate,
     ModeChangeEventCreate,
+    FeedbackCreate,
 )
 from datetime import datetime, timezone
 
@@ -32,6 +33,8 @@ async def create_metrics_entry(
 
     doc = {
         'user_id':     str(user_doc['_id']),
+        'username':    body.username,
+        'session_id':  body.session_id,
         'received_at': datetime.now(timezone.utc),
         'timestamp':   body.timestamp,
         'hr':          body.hr,
@@ -48,13 +51,17 @@ async def create_metrics_entry(
 
 @router.get('/')
 async def list_metrics_entries(
-    skip: int = 0, limit: int = 50, user=Depends(get_current_user)
+    skip: int = 0,
+    limit: int = 50,
+    session_id: Optional[int] = None,
+    user=Depends(get_current_user),
 ):
     db = get_db()
     user_doc = await _get_user_doc(db, user['uid'])
-    cursor = db.metrics_entries.find(
-        {'user_id': str(user_doc['_id'])}
-    ).sort('timestamp', -1).skip(skip).limit(limit)
+    query = {'user_id': str(user_doc['_id'])}
+    if session_id is not None:
+        query['session_id'] = session_id
+    cursor = db.metrics_entries.find(query).sort('timestamp', -1).skip(skip).limit(limit)
     results = []
     async for doc in cursor:
         doc['id'] = str(doc.pop('_id'))
@@ -91,6 +98,8 @@ async def create_power_change_event(
 
     doc = {
         'user_id':           str(user_doc['_id']),
+        'username':          body.username,
+        'session_id':        body.session_id,
         'received_at':       datetime.now(timezone.utc),
         'timestamp':         body.timestamp,
         'type':              'power_change',
@@ -114,6 +123,8 @@ async def create_mode_change_event(
 
     doc = {
         'user_id':     str(user_doc['_id']),
+        'username':    body.username,
+        'session_id':  body.session_id,
         'received_at': datetime.now(timezone.utc),
         'timestamp':   body.timestamp,
         'type':        'mode_change',
@@ -130,6 +141,7 @@ async def list_events(
     skip: int = 0,
     limit: int = 50,
     type: Optional[str] = Query(default=None, description="'power_change' or 'mode_change'"),
+    session_id: Optional[int] = None,
     user=Depends(get_current_user),
 ):
     db = get_db()
@@ -137,7 +149,52 @@ async def list_events(
     query = {'user_id': str(user_doc['_id'])}
     if type:
         query['type'] = type
+    if session_id is not None:
+        query['session_id'] = session_id
     cursor = db.events.find(query).sort('timestamp', -1).skip(skip).limit(limit)
+    results = []
+    async for doc in cursor:
+        doc['id'] = str(doc.pop('_id'))
+        results.append(doc)
+    return results
+
+
+# ---------------------------------------------------------------------------
+# User feedback — one document per press of "Save Feedback" in the app
+# ---------------------------------------------------------------------------
+
+@router.post('/feedback', status_code=201)
+async def create_feedback(
+    body: FeedbackCreate, user=Depends(get_current_user)
+):
+    db = get_db()
+    user_doc = await _get_user_doc(db, user['uid'])
+
+    doc = {
+        'user_id':     str(user_doc['_id']),
+        'username':    body.username,
+        'session_id':  body.session_id,
+        'received_at': datetime.now(timezone.utc),
+        'timestamp':   body.timestamp,
+        'text':        body.text,
+    }
+    result = await db.feedback.insert_one(doc)
+    return {'id': str(result.inserted_id)}
+
+
+@router.get('/feedback')
+async def list_feedback(
+    skip: int = 0,
+    limit: int = 50,
+    session_id: Optional[int] = None,
+    user=Depends(get_current_user),
+):
+    db = get_db()
+    user_doc = await _get_user_doc(db, user['uid'])
+    query = {'user_id': str(user_doc['_id'])}
+    if session_id is not None:
+        query['session_id'] = session_id
+    cursor = db.feedback.find(query).sort('timestamp', -1).skip(skip).limit(limit)
     results = []
     async for doc in cursor:
         doc['id'] = str(doc.pop('_id'))
