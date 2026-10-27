@@ -1,8 +1,12 @@
-from fastapi import APIRouter, Depends, HTTPException
-from app.dependencies import get_current_user
-from app.database import get_db
-from app.models.user import UserCreate, UserUpdate, UserResponse
 from datetime import datetime, timezone
+
+from fastapi import APIRouter, Depends, HTTPException
+from pymongo.errors import DuplicateKeyError
+
+from app.database import get_db
+from app.dependencies import get_current_user
+from app.models.user import UserCreate, UserUpdate
+from app.records import new_user_doc, serialize
 
 router = APIRouter(prefix='/auth', tags=['auth'])
 
@@ -13,15 +17,13 @@ async def register(body: UserCreate, user=Depends(get_current_user)):
     existing = await db.users.find_one({'firebase_uid': user['uid']})
     if existing:
         return {'message': 'User already exists', 'id': str(existing['_id'])}
-    doc = {
-        'firebase_uid': user['uid'],
-        'email': user.get('email', ''),
-        'display_name': body.display_name,
-        'preferences': {},
-        'created_at': datetime.now(timezone.utc),
-        'updated_at': datetime.now(timezone.utc),
-    }
-    result = await db.users.insert_one(doc)
+    doc = new_user_doc(user['uid'], user.get('email', ''), body.display_name)
+    try:
+        result = await db.users.insert_one(doc)
+    except DuplicateKeyError:
+        # A parallel request registered the same user first.
+        existing = await db.users.find_one({'firebase_uid': user['uid']})
+        return {'message': 'User already exists', 'id': str(existing['_id'])}
     return {'message': 'User created', 'id': str(result.inserted_id)}
 
 
@@ -31,8 +33,7 @@ async def get_me(user=Depends(get_current_user)):
     doc = await db.users.find_one({'firebase_uid': user['uid']})
     if not doc:
         raise HTTPException(status_code=404, detail='Profile not found')
-    doc['id'] = str(doc.pop('_id'))
-    return doc
+    return serialize(doc)
 
 
 @router.patch('/me')

@@ -1,0 +1,51 @@
+# Runs on every push and pull request: tests, static analysis, dependency
+# audit, SBOM and a secret scan. Render deploys main, so keep main green.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Tests and checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.11'   # same as the Dockerfile
+      - name: Install
+        run: pip install -r requirements-dev.txt bandit==1.9.4 pip-audit==2.10.1 cyclonedx-bom==7.5.0
+      - name: Tests
+        run: python -m pytest -q
+      - name: Static analysis (Bandit)
+        run: bandit -r app
+      - name: Dependency vulnerabilities (pip-audit)
+        run: pip-audit -r requirements.txt
+      - name: Software bill of materials (CycloneDX)
+        run: cyclonedx-py requirements requirements.txt --output-file sbom.cdx.json
+      - uses: actions/upload-artifact@v7
+        with:
+          name: sbom
+          path: sbom.cdx.json
+          retention-days: 90
+
+  secrets:
+    name: Secret scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Gitleaks
+        run: |
+          curl -sSfL -o gitleaks.tar.gz https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz
+          tar -xzf gitleaks.tar.gz gitleaks
+          ./gitleaks git --redact --exit-code 1 .
