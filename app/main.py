@@ -29,7 +29,6 @@ async def lifespan(app: FastAPI):
     dependencies.init_firebase()
     await database.connect_db()
     await database.ensure_indexes()
-    await database.warn_if_over_privileged()
     logger.info('ExoMetrics API started (environment=%s, docs=%s)', settings.environment, settings.docs_enabled)
     yield
     await database.close_db()

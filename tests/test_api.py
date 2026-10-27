@@ -232,11 +232,6 @@ def test_session_filter_from_live_api_is_kept(client):
     assert len(client.get('/metrics/events?session_id=3', headers=AUTH).json()) == 1
 
 
-def test_least_privilege_check_never_blocks_startup(client):
-    # Ran during startup on the in-memory database without raising.
-    assert client.get('/health').status_code == 200
-
-
 def test_get_for_unknown_user_is_still_404(client):
     assert client.get('/metrics/', headers=AUTH).status_code == 404
     assert len(stored('users')) == 0

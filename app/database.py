@@ -84,30 +84,6 @@ async def ping() -> bool:
         return False
 
 
-# Roles that reach beyond this one database. The API's database user only
-# needs readWrite on settings.db_name (least privilege).
-_BROAD_ROLES = {
-    'atlasAdmin', 'root', 'readWriteAnyDatabase', 'dbAdminAnyDatabase',
-    'userAdminAnyDatabase', 'clusterAdmin', 'clusterManager', 'dbOwner',
-}
-
-
-async def warn_if_over_privileged():
-    """Logs a warning when the connected database user has more rights than
-    the API needs. Never blocks startup."""
-    try:
-        status = await get_db().command({'connectionStatus': 1})
-        roles = status.get('authInfo', {}).get('authenticatedUserRoles', [])
-        broad = sorted({r.get('role') for r in roles if r.get('role') in _BROAD_ROLES})
-        if broad:
-            logger.warning(
-                'Database user has broad roles %s; give the API a user with readWrite on %r only',
-                broad, settings.db_name,
-            )
-    except Exception as exc:
-        logger.info('Could not check database user roles (%s)', type(exc).__name__)
-
-
 async def ensure_indexes():
     """Creates the indexes the API relies on. A failure is logged, never fatal."""
     db = get_db()
